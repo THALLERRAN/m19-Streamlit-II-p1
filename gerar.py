@@ -95,3 +95,125 @@ if bank_raw is not None:
     # Exibe a tabela de dados filtrados usando st.dataframe()
     st.header("Amostra dos Dados Filtrados")
     st.dataframe(bank_filtrado.head())
+
+import streamlit as st
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# --- Configuração da Página ---
+st.set_page_config(
+    page_title="Análise de Dados Bancários",
+    page_icon="📊",
+    layout="wide"
+)
+
+# --- Título ---
+st.title('📊 Análise Interativa de Dados Bancários')
+
+# --- Carregamento e Cache dos Dados ---
+# Usar o cache do Streamlit acelera o recarregamento da página
+@st.cache_data
+def load_data(file_path):
+    try:
+        return pd.read_csv(file_path, delimiter=';')
+    except FileNotFoundError:
+        st.error(f"Arquivo não encontrado em: {file_path}. Verifique o caminho.")
+        return None
+
+bank_raw = load_data("bank-additional-full.csv")
+
+# --- Barra Lateral de Filtros ---
+if bank_raw is not None:
+    st.sidebar.header('Filtros Interativos')
+
+    # Filtro de Idade
+    min_age = int(bank_raw['age'].min())
+    max_age = int(bank_raw['age'].max())
+    idades = st.sidebar.slider(
+        'Selecione a faixa de idade',
+        min_age, max_age, (min_age, max_age)
+    )
+
+    # Filtro de Profissão
+    jobs_list = bank_raw['job'].unique()
+    job_filter = st.sidebar.multiselect(
+        'Selecione as profissões',
+        options=list(jobs_list),
+        default=list(jobs_list)
+    )
+
+    # --- Aplicação dos Filtros ---
+    bank_filtered = bank_raw[
+        (bank_raw['age'] >= idades[0]) &
+        (bank_raw['age'] <= idades[1]) &
+        (bank_raw['job'].isin(job_filter))
+    ]
+
+    # --- Conteúdo Principal ---
+    st.header('Visualização dos Dados')
+    st.write('Use os filtros na barra lateral para explorar o conjunto de dados.')
+
+    st.subheader('Dados Filtrados')
+    st.dataframe(bank_filtered)
+
+    # --- Gráficos Comparativos ---
+    st.header('Análise Gráfica')
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader('Proporção de Inscrições (Dados Brutos)')
+        bank_raw_target_perc = bank_raw['y'].value_counts(normalize=True).to_frame() * 100
+        fig, ax = plt.subplots()
+        sns.barplot(x=bank_raw_target_perc.index, y='y', data=bank_raw_target_perc, ax=ax)
+        ax.bar_label(ax.containers[0], fmt='%.2f%%')
+        st.pyplot(fig)
+
+    with col2:
+        st.subheader('Proporção de Inscrições (Dados Filtrados)')
+        if not bank_filtered.empty:
+            bank_target_perc = bank_filtered['y'].value_counts(normalize=True).to_frame() * 100
+            fig, ax = plt.subplots()
+            sns.barplot(x=bank_target_perc.index, y='y', data=bank_target_perc, ax=ax)
+            ax.bar_label(ax.containers[0], fmt='%.2f%%')
+            st.pyplot(fig)
+        else:
+            st.warning("Nenhum dado corresponde aos filtros selecionados.")
+
+
+    # --- SEÇÃO DE DOWNLOAD ---
+    st.header('⬇️ Download dos Dados Filtrados')
+    st.write('Clique em um dos botões abaixo para baixar o arquivo CSV com os dados atuais da tabela.')
+
+    # Converte o dataframe para CSV para ser baixado
+    @st.cache_data
+    def convert_df_to_csv(df):
+        return df.to_csv(index=False, sep=';').encode('utf-8')
+
+    csv = convert_df_to_csv(bank_filtered)
+
+    # Botão de download padrão
+    st.download_button(
+       label="Baixar como CSV (Padrão)",
+       data=csv,
+       file_name='bank_filtered.csv',
+       mime='text/csv',
+    )
+
+    # Botão de download com emoji
+    st.download_button(
+       label="Baixar com Emoji",
+       data=csv,
+       file_name='bank_filtered.csv',
+       mime='text/csv',
+       icon="📥"
+    )
+
+    # Botão de download com ícone do Material Symbols
+    st.download_button(
+       label="Baixar com Ícone Material",
+       data=csv,
+       file_name='bank_filtered.csv',
+       mime='text/csv',
+       icon=":material/download:"
+    )
